@@ -1,0 +1,57 @@
+## Merges the training and the test sets to create one set
+
+library(data.table)
+library(dplyr)
+
+dataSubjectTrain <- tbl_df(read.table("./UCI HAR Dataset/train/subject_train.txt"))             ## read subject files
+dataSubjectTest <- tbl_df(read.table("./UCI HAR Dataset/test/subject_test.txt"))                ## read subject files
+
+dataActivityTrain <- tbl_df(read.table("./UCI HAR Dataset/train/Y_train.txt"))                  ## read activity files
+dataActivityTest <- tbl_df(read.table("./UCI HAR Dataset/test/Y_test.txt"))                     ## read activity files
+
+dataTrain <- tbl_df(read.table("./UCI HAR Dataset/train/X_train.txt"))                          ## read data files
+dataTest <- tbl_df(read.table("./UCI HAR Dataset/test/X_test.txt"))                             ## read data files
+
+dataFeatures <- tbl_df(read.table("./UCI HAR Dataset/features.txt")); setnames(dataFeatures, names(dataFeatures), c("featureNum", "featureName"))
+activityLabels <- tbl_df(read.table("./UCI HAR Dataset/activity_labels.txt")); setnames(activityLabels, names(activityLabels), c("activityNum", "activityName"))
+
+alldataSubject <- rbind(dataSubjectTrain, dataSubjectTest); setnames(alldataSubject, "V1", "Subject")
+alldataActivity <- rbind(dataActivityTrain, dataActivityTest); setnames(alldataActivity, "V1", "activityNum")
+dataTable <- rbind(dataTrain, dataTest); colnames(dataTable) <- dataFeatures$featureName
+
+dataSet <- cbind(cbind(alldataSubject, alldataActivity), dataTable)                            ## merging columns to create dataset
+
+
+## Extracts only the measurements on the mean and standard deviation for each measurement
+
+library(tidyr)
+
+meanStd.dataFeatures <- grep("mean\\(\\)|std\\(\\)", dataFeatures$featureName, value=T)           ## extracting mean and std from features.txt
+meanStd.dataFeatures <- union(c("Subject", "activityNum"), meanStd.dataFeatures)                  ## taking only measurements for mean and std and adding of "Subject" and "activityNum
+dataSet <- subset(dataSet, select=meanStd.dataFeatures)
+
+
+## Uses descriptive activity mean to name the activities in the data set
+
+dataSet <- merge(activityLabels, dataSet, by="activityNum", all.x=T)       ## enter name of activity
+dataSet$activityName <- as.character(dataSet$activityName)               ## sorting mean by Subject and Activity
+dataAggregate <- aggregate(.~Subject - activityName, data=dataSet, mean)
+dataSet <- tbl_df(arrange(dataAggregate, Subject, activityName))
+
+
+## Appropriately labels the data set with descriptive variable means
+
+names(dataSet) <- gsub("std()", "SD", names(dataSet))
+names(dataSet) <- gsub("mean()", "MEAN", names(dataSet))
+names(dataSet) <- gsub("^t", "Time", names(dataSet))
+names(dataSet) <- gsub("^f", "Frequency", names(dataSet))
+names(dataSet) <- gsub("Acc", "Accelerometer", names(dataSet))
+names(dataSet) <- gsub("Gyro", "Gyroscope", names(dataSet))
+names(dataSet) <- gsub("Mag", "Magnitude", names(dataSet))
+names(dataSet) <- gsub("BodyBody", "Body", names(dataSet))
+
+
+## From the data set in step 4, creates a second, independent tidy set with the average of each variable for each activity and each subject
+
+write.table(dataSet, "TidyData.txt", row.name=F)     ## write text file
+
